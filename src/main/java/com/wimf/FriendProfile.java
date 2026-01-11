@@ -38,25 +38,39 @@ public class FriendProfile {
         this.lastSeenTimestamp = lastSeenTimestamp;
     }
     // --- Сеттеры ---
-    public List<String> getNotes() { return this.notes; }
-    public void setNotes(List<String> notes) { this.notes = notes; }
-    // Добавим вспомогательные методы
-    public void addNote(String note) { this.notes.add(note); }
-    public boolean removeNote(int index) {
-        if (index >= 0 && index < this.notes.size()) {
-            this.notes.remove(index);
-            return true;
+    public List<String> getNotes() {
+        // ГЛАВНОЕ ИСПРАВЛЕНИЕ:
+        // Если при загрузке файла список оказался null, мы создаем его прямо тут.
+        if (this.notes == null) {
+            this.notes = new ArrayList<>();
         }
-        return false;
+        return this.notes;
     }
-    public boolean setNote(int index, String newNote) {
-        if (index >= 0 && index < this.notes.size()) {
-            this.notes.set(index, newNote);
+
+    public void setNotes(List<String> notes) { this.notes = notes; }
+
+    public void addNote(String note) {
+        // Используем getNotes(), чтобы гарантировать, что список существует
+        getNotes().add(note);
+    }
+
+    public boolean removeNote(int index) {
+        // Используем getNotes()
+        if (index >= 0 && index < getNotes().size()) {
+            getNotes().remove(index);
             return true;
         }
         return false;
     }
 
+    public boolean setNote(int index, String newNote) {
+        // Используем getNotes()
+        if (index >= 0 && index < getNotes().size()) {
+            getNotes().set(index, newNote);
+            return true;
+        }
+        return false;
+    }
     public void setOnlineColor(String onlineColor) { this.onlineColor = onlineColor; }
     public void setOfflineColor(String offlineColor) { this.offlineColor = offlineColor; }
 

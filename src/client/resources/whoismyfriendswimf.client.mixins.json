@@ -3,7 +3,9 @@
 	"package": "com.wimf.mixin.client",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
-		"PlayerListHudMixin"
+		"PlayerListHudMixin",
+		"SocialInteractionsScreenMixin",
+		"SocialInteractionsPlayerListEntryMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

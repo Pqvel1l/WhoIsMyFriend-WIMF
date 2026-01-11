@@ -52,5 +52,18 @@
   "wimf.message.color_set": "§aSetting for '%s' §ahas been changed.",
   "wimf.message.color_error": "§cInvalid color format! Use HEX (#RRGGBB), name (gold), or &-code (&6).",
   "wimf.message.icon_set": "§aFriend icon has been set.",
-  "wimf.message.icon_too_long": "§cIcon is too long! (Max 5 chars)"
+  "wimf.message.icon_too_long": "§cIcon is too long! (Max 5 chars)",
+  "wimf.gui.tab.friends": "Friends",
+  "wimf.gui.notes.title": "Notes: %s",
+  "wimf.gui.notes.input_placeholder": "New note...",
+  "wimf.gui.notes.button.add": "Add Note",
+  "wimf.gui.notes.button.delete_last": "Delete Last",
+  "wimf.gui.notes.button.done": "Done",
+  "wimf.gui.notes.empty": "No notes yet...",
+  "wimf.gui.notes.tooltip.add": "Save note",
+  "wimf.gui.notes.tooltip.delete": "Remove last note",
+  "wimf.gui.tooltip.toggle_friend": "Add/Remove Friend",
+  "wimf.gui.tooltip.open_notes": "Open Notes",
+  "wimf.gui.tab.add": "Add Friend",
+  "wimf.gui.tab.remove": "Remove"
 }

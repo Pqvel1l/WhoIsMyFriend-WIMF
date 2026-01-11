@@ -52,5 +52,18 @@
   "wimf.message.color_set": "§eНастройка '%s' §eбыла изменена.",
   "wimf.message.color_error": "§cНеверный формат цвета! Используйте HEX (#RRGGBB), название (gold) или &-код (&6).",
   "wimf.message.icon_set": "§aИконка друга установлена.",
-  "wimf.message.icon_too_long": "§cИконка слишком длинная! (Макс. 5 символов)"
+  "wimf.message.icon_too_long": "§cИконка слишком длинная! (Макс. 5 символов)",
+  "wimf.gui.tab.friends": "Друзья",
+  "wimf.gui.tab.add": "Добавить",
+  "wimf.gui.tab.remove": "Удалить",
+  "wimf.gui.notes.title": "Заметки: %s",
+  "wimf.gui.notes.input_placeholder": "Новая заметка...",
+  "wimf.gui.notes.button.add": "Добавить",
+  "wimf.gui.notes.button.delete_last": "Удалить посл.",
+  "wimf.gui.notes.button.done": "Готово",
+  "wimf.gui.notes.empty": "Нет заметок...",
+  "wimf.gui.notes.tooltip.add": "Сохранить заметку",
+  "wimf.gui.notes.tooltip.delete": "Удалить последнюю запись",
+  "wimf.gui.tooltip.toggle_friend": "Добавить/Удалить друга",
+  "wimf.gui.tooltip.open_notes": "Открыть заметки"
 }
