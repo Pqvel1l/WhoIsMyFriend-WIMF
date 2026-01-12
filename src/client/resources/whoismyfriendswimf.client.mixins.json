@@ -5,7 +5,9 @@
 	"client": [
 		"PlayerListHudMixin",
 		"SocialInteractionsScreenMixin",
-		"SocialInteractionsPlayerListEntryMixin"
+		"SocialInteractionsPlayerListEntryMixin",
+		"ClientPlayNetworkHandlerMixin",
+		"SocialInteractionsPlayerListWidgetMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -65,5 +65,17 @@
   "wimf.gui.notes.tooltip.add": "Сохранить заметку",
   "wimf.gui.notes.tooltip.delete": "Удалить последнюю запись",
   "wimf.gui.tooltip.toggle_friend": "Добавить/Удалить друга",
-  "wimf.gui.tooltip.open_notes": "Открыть заметки"
+  "wimf.gui.tooltip.open_notes": "Открыть заметки",
+  "wimf.gui.notes.button.save": "Сохранить",
+  "wimf.gui.notes.button.back": "<",
+  "wimf.gui.notes.editing": "Редактирование записи №%s",
+  "wimf.gui.notes.tooltip.edit": "Изменить заметку",
+  "wimf.gui.notes.button.back_to_list": "Вернуться к списку друзей",
+  "wimf.gui.notes.button.delete_selected": "Удалить (%s)",
+  "wimf.gui.notes.button.delete_selected_none": "Выберите для удаления",
+  "wimf.status.never_seen": "Никогда не был(а) в сети",
+  "wimf.status.online_now": "Онлайн прямо сейчас",
+  "wimf.status.seen_minutes": "Был(а) %s мин. назад",
+  "wimf.status.seen_hours": "Был(а) %s ч. назад",
+  "wimf.status.seen_days": "Был(а) %s д. назад"
 }

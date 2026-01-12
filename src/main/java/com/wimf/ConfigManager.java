@@ -4,50 +4,65 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
 
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Path;
 
 public class ConfigManager {
+    // ВАЖНО: Сначала объявляем файл и GSON, чтобы они были готовы к использованию
+    private static final File CONFIG_FILE = FabricLoader.getInstance().getConfigDir().resolve("whoismyfriendwimf.json").toFile();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    // ВАЖНО: И только ПОТОМ создаем INSTANCE, который вызывает конструктор
     private static final ConfigManager INSTANCE = new ConfigManager();
-    public static ConfigManager getInstance() { return INSTANCE; }
-    private ConfigManager() {}
 
-    private final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private final Path configFile = FabricLoader.getInstance().getConfigDir().resolve("wimf_config.json");
+    private ModConfig config;
 
-    // Приватное поле для хранения загруженной конфигурации
-    private ModConfig config = new ModConfig();
+    // Конструктор
+    private ConfigManager() {
+        load();
+    }
 
-    // Публичный геттер, чтобы все могли получить доступ к настройкам
+    public static ConfigManager getInstance() {
+        return INSTANCE;
+    }
+
     public ModConfig getConfig() {
+        if (config == null) {
+            // Если вдруг конфига нет в памяти, грузим принудительно
+            load();
+        }
         return config;
     }
 
-    public void save() {
-        try (FileWriter writer = new FileWriter(configFile.toFile())) {
-            GSON.toJson(this.config, writer); // Сохраняем весь объект config
+    public boolean load() {
+        // Теперь CONFIG_FILE точно не null
+        if (!CONFIG_FILE.exists()) {
+            config = new ModConfig();
+            save();
+            return true;
+        }
+
+        try (FileReader reader = new FileReader(CONFIG_FILE)) {
+            config = GSON.fromJson(reader, ModConfig.class);
+
+            if (config == null) {
+                config = new ModConfig();
+            }
+            return true;
         } catch (IOException e) {
-            System.err.println("[WIMF] Не удалось сохранить файл конфигурации!");
             e.printStackTrace();
+            config = new ModConfig();
+            return false;
         }
     }
 
-    public void load() {
-        if (!configFile.toFile().exists()) {
-            // Если файла нет, просто сохраняем конфиг по умолчанию
-            save();
-            return;
-        }
-
-        try (FileReader reader = new FileReader(configFile.toFile())) {
-            ModConfig loadedConfig = GSON.fromJson(reader, ModConfig.class);
-            if (loadedConfig != null) {
-                this.config = loadedConfig;
-            }
+    public void save() {
+        if (config == null) return;
+        try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
+            GSON.toJson(config, writer);
         } catch (IOException e) {
-            System.err.println("[WIMF] Не удалось прочитать файл конфигурации!");
             e.printStackTrace();
         }
     }

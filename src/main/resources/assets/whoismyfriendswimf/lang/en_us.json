@@ -65,5 +65,18 @@
   "wimf.gui.tooltip.toggle_friend": "Add/Remove Friend",
   "wimf.gui.tooltip.open_notes": "Open Notes",
   "wimf.gui.tab.add": "Add Friend",
-  "wimf.gui.tab.remove": "Remove"
+  "wimf.gui.tab.remove": "Remove",
+  "wimf.gui.notes.button.save": "Save",
+  "wimf.gui.notes.button.back": "<",
+  "wimf.gui.notes.editing": "Editing note #%s",
+  "wimf.gui.notes.tooltip.edit": "Edit note",
+  "wimf.gui.notes.button.delete_selected": "Delete (%s)",
+  "wimf.gui.notes.button.delete_selected_none": "Select for remove",
+  "wimf.gui.notes.button.back_to_list": "Return to Friend List",
+  "wimf.status.never_seen": "Never seen",
+  "wimf.status.online_now": "Online just now",
+  "wimf.status.seen_minutes": "Seen %s min ago",
+  "wimf.status.seen_hours": "Seen %s h ago",
+  "wimf.status.seen_days": "Seen %s d ago"
+
 }

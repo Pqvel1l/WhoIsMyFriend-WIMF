@@ -54,6 +54,15 @@ public abstract class SocialInteractionsScreenMixin extends Screen implements IF
 
         this.wimf$friendButton = ButtonWidget.builder(FRIENDS_TAB_TITLE, button -> {
                     this.wimf$isFriendTab = true;
+
+                    // --- ЯДЕРНОЕ РЕШЕНИЕ ---
+                    // Принудительно перезагружаем данные перед показом
+                    FriendManager.getInstance().reload();
+
+                    if (this.playerList != null) {
+                        this.playerList.setScrollY(0);
+                    }
+
                     this.updateFriendList();
                     this.updateButtonStyles();
                 })
@@ -62,6 +71,9 @@ public abstract class SocialInteractionsScreenMixin extends Screen implements IF
                 .build();
 
         this.addDrawableChild(this.wimf$friendButton);
+        if (this.wimf$isFriendTab) {
+            this.updateFriendList();
+        }
     }
 
     /**
@@ -87,24 +99,46 @@ public abstract class SocialInteractionsScreenMixin extends Screen implements IF
 
     @Unique
     private void updateFriendList() {
-        if (this.playerList != null && this.client != null && this.client.getNetworkHandler() != null) {
-            Collection<UUID> allOnlineUUIDs = this.client.getNetworkHandler().getPlayerUuids();
-            List<UUID> onlineFriends = new ArrayList<>();
+        if (this.playerList != null && this.client != null) {
 
-            for (UUID uuid : allOnlineUUIDs) {
-                PlayerListEntry entry = this.client.getNetworkHandler().getPlayerListEntry(uuid);
-                if (entry != null) {
-                    String nickname = entry.getProfile().getName();
-                    if (FriendManager.getInstance().isFriend(nickname)) {
-                        onlineFriends.add(uuid);
+            // --- ОТЛАДКА ---
+            List<com.wimf.FriendProfile> friends = FriendManager.getInstance().getAllFriends();
+            // ----------------
+
+            List<UUID> uuidsToShow = new ArrayList<>();
+            List<String> addedNicknames = new ArrayList<>();
+
+            // 1. Онлайн
+            if (this.client.getNetworkHandler() != null) {
+                Collection<UUID> onlineUUIDs = this.client.getNetworkHandler().getPlayerUuids();
+                for (UUID uuid : onlineUUIDs) {
+                    PlayerListEntry entry = this.client.getNetworkHandler().getPlayerListEntry(uuid);
+                    if (entry != null) {
+                        String name = entry.getProfile().getName();
+                        if (FriendManager.getInstance().isFriend(name)) {
+                            uuidsToShow.add(uuid);
+                            addedNicknames.add(name);
+                            FriendManager.getInstance().updateFriendStatus(name, uuid);
+                        }
                     }
                 }
             }
-            // false = не показывать заблокированных
-            this.playerList.update(onlineFriends, 0, false);
+
+            // 2. Оффлайн
+            for (com.wimf.FriendProfile profile : friends) {
+                if (addedNicknames.contains(profile.getNickname())) continue;
+
+                UUID fUuid = profile.getUuid();
+                if (!uuidsToShow.contains(fUuid)) {
+                    uuidsToShow.add(fUuid);
+                }
+            }
+
+
+            this.playerList.setScrollY(0);
+            this.playerList.update(uuidsToShow, 0, false);
         }
     }
-
     @Unique
     private void updateButtonStyles() {
         if (this.wimf$friendButton != null) {

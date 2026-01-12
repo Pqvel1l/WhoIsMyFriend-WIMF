@@ -2,11 +2,24 @@ package com.wimf;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public class FriendManager {
     private static final FriendManager INSTANCE = new FriendManager();
-    public static FriendManager getInstance() { return INSTANCE; }
+
+    public static FriendManager getInstance() {
+        return INSTANCE;
+    }
+    static {
+        System.out.println("WIMF: FriendManager initializing...");
+        ConfigManager.getInstance().getConfig();
+    }
     private FriendManager() {}
+
+    // НОВЫЙ МЕТОД: Принудительная перезагрузка
+    public void reload() {
+        ConfigManager.getInstance().load();
+    }
 
     private List<FriendProfile> getFriendsList() {
         return ConfigManager.getInstance().getConfig().getFriends();
@@ -16,22 +29,34 @@ public class FriendManager {
         ConfigManager.getInstance().save();
     }
 
-    // --- Основные операции с друзьями ---
-
-    public boolean addFriend(String nickname) {
+    // Добавление друга (Ник + UUID)
+    public boolean addFriend(String nickname, UUID uuid) {
         if (isFriend(nickname)) {
             return false;
         }
-        getFriendsList().add(new FriendProfile(nickname));
+        getFriendsList().add(new FriendProfile(nickname, uuid));
         save();
         return true;
     }
 
+    // Перегрузка для совместимости (если UUID неизвестен)
+    public boolean addFriend(String nickname) {
+        return addFriend(nickname, null);
+    }
+
+    // Обновление статуса (Last Seen)
+    public void updateFriendStatus(String nickname, UUID uuid) {
+        getFriend(nickname).ifPresent(profile -> {
+            profile.updateLastSeen();
+            if (profile.getUuid() == null && uuid != null) {
+                profile.setUuid(uuid);
+            }
+        });
+    }
+
     public boolean removeFriend(String nickname) {
         boolean removed = getFriendsList().removeIf(profile -> profile.getNickname().equalsIgnoreCase(nickname));
-        if (removed) {
-            save();
-        }
+        if (removed) save();
         return removed;
     }
 
@@ -45,12 +70,7 @@ public class FriendManager {
                 .findFirst();
     }
 
-    public List<FriendProfile> getAllFriends() {
-        return getFriendsList();
-    }
-
-    // --- Новые методы для управления заметками (Logic moved from Commands) ---
-
+    // --- Заметки ---
     public boolean addNote(String nickname, String noteText) {
         Optional<FriendProfile> profileOpt = getFriend(nickname);
         if (profileOpt.isPresent()) {
@@ -64,7 +84,6 @@ public class FriendManager {
     public boolean editNote(String nickname, int noteIndex, String newText) {
         Optional<FriendProfile> profileOpt = getFriend(nickname);
         if (profileOpt.isPresent()) {
-            // NoteIndex ожидаем 0-based (начинается с 0, а не с 1)
             boolean success = profileOpt.get().setNote(noteIndex, newText);
             if (success) save();
             return success;
@@ -81,4 +100,10 @@ public class FriendManager {
         }
         return false;
     }
+
+    // ЭТОТ МЕТОД НУЖЕН ДЛЯ MIXIN
+    public List<FriendProfile> getAllFriends() {
+        return getFriendsList();
+    }
+
 }

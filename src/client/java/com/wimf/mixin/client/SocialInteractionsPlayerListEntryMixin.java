@@ -34,7 +34,7 @@ public class SocialInteractionsPlayerListEntryMixin {
 
     @Unique
     private ButtonWidget wimf$friendButton;
-
+    @Shadow private boolean offline;
     // --- ЛОГИКА ЦВЕТА ---
     @Redirect(
             method = "render",
@@ -46,6 +46,16 @@ public class SocialInteractionsPlayerListEntryMixin {
     )
     private int changeColorOnGet() {
         if (FriendManager.getInstance().isFriend(this.name)) {
+            // Если игрок ОФФЛАЙН
+            if (this.offline) {
+                // ВАРИАНТ 1: Темно-зеленый (0xFF00AA00)
+                // return 0xFF00AA00;
+
+                // ВАРИАНТ 2: Серый (0xFFAAAAAA) - как у обычных оффлайн игроков
+                 return 0xFFAAAAAA;
+            }
+
+            // Если ОНЛАЙН — Ярко-зеленый
             return 0xFF55FF55;
         }
         return WHITE_COLOR;
@@ -56,7 +66,7 @@ public class SocialInteractionsPlayerListEntryMixin {
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void addCustomButtons(MinecraftClient client, SocialInteractionsScreen parent, UUID uuid, String name, Supplier<SkinTextures> skinTexture, boolean reportable, CallbackInfo ci) {
-        // 1. Кнопка Друг (+/-) — ЭТОТ КОД УЖЕ ЕСТЬ, ОСТАВЛЯЕМ КАК БЫЛ
+        // 1. Кнопка Друг (+/-)
         boolean isFriend = FriendManager.getInstance().isFriend(name);
         Text buttonText = isFriend ? Text.literal("-") : Text.literal("+");
 
@@ -65,12 +75,12 @@ public class SocialInteractionsPlayerListEntryMixin {
                     if (currentlyFriend) {
                         FriendManager.getInstance().removeFriend(name);
                         button.setMessage(Text.literal("+"));
-                        // Скрываем кнопку заметок, если удалили из друзей
                         if (this.wimf$noteButton != null) this.wimf$noteButton.visible = false;
                     } else {
-                        FriendManager.getInstance().addFriend(name);
+                        // ВАЖНО: Передаем uuid, который мы получили в аргументах метода
+                        FriendManager.getInstance().addFriend(name, uuid);
+
                         button.setMessage(Text.literal("-"));
-                        // Показываем кнопку заметок
                         if (this.wimf$noteButton != null) this.wimf$noteButton.visible = true;
                     }
 
@@ -82,26 +92,21 @@ public class SocialInteractionsPlayerListEntryMixin {
                 })
                 .dimensions(0, 0, 20, 20)
                 .tooltip(Tooltip.of(Text.translatable("wimf.gui.tooltip.toggle_friend")))
-
                 .build();
 
-        // 2. НОВАЯ КНОПКА: ЗАМЕТКИ (✎)
+        // 2. Кнопка Заметки (✎)
         this.wimf$noteButton = ButtonWidget.builder(Text.literal("✎"), button -> {
-                    // Открываем экран заметок
-                    // parent — это текущий экран (SocialInteractionsScreen)
                     client.setScreen(new com.wimf.gui.FriendNoteScreen(parent, name));
                 })
                 .dimensions(0, 0, 20, 20)
                 .tooltip(Tooltip.of(Text.translatable("wimf.gui.tooltip.open_notes")))
                 .build();
 
-        // Видима только если это друг
         this.wimf$noteButton.visible = isFriend;
 
-        // 3. Добавляем обе кнопки в список
         List<ClickableWidget> mutableButtons = new ArrayList<>(this.buttons);
         mutableButtons.add(this.wimf$friendButton);
-        mutableButtons.add(this.wimf$noteButton); // Добавляем вторую кнопку
+        mutableButtons.add(this.wimf$noteButton);
         this.buttons = mutableButtons;
     }
 
