@@ -77,6 +77,15 @@
   "wimf.status.online_now": "Online just now",
   "wimf.status.seen_minutes": "Seen %s min ago",
   "wimf.status.seen_hours": "Seen %s h ago",
-  "wimf.status.seen_days": "Seen %s d ago"
+  "wimf.status.seen_days": "Seen %s d ago",
+  "wimf.toast.title": "Friend Joined!",
+  "wimf.toast.message": "%s is now online",
+  "wimf.gui.toggle_favorite":"Toggle favorite",
+  "wimf.gui.settings.title": "Friend Settings",
+  "wimf.gui.settings.toasts": "Show Join Toasts: %s",
+  "wimf.gui.settings.online_label": "Online Color (Hex):",
+  "wimf.gui.settings.offline_label": "Offline Color (Hex):",
+  "wimf.gui.notes.layout": "Layout: %sx",
+  "wimf.gui.notes.tooltip.layout": "Change Grid View"
 
 }

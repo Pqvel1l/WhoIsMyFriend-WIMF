@@ -77,5 +77,14 @@
   "wimf.status.online_now": "Онлайн прямо сейчас",
   "wimf.status.seen_minutes": "Был(а) %s мин. назад",
   "wimf.status.seen_hours": "Был(а) %s ч. назад",
-  "wimf.status.seen_days": "Был(а) %s д. назад"
+  "wimf.status.seen_days": "Был(а) %s д. назад",
+  "wimf.toast.title": "Друг зашёл!",
+  "wimf.toast.message": "%s в сети!",
+  "wimf.gui.toggle_favorite":"Убрать из избранного",
+  "wimf.gui.settings.title": "Настройки WIMF",
+  "wimf.gui.settings.toasts": "Показывать уведомление о входе: %s",
+  "wimf.gui.settings.online_label": "Цвет отображения игрока онлайн (HЕХ-формат):",
+  "wimf.gui.settings.offline_label": "Цвет отображения игрока оффлайн (HEX-Формат):",
+  "wimf.gui.notes.layout": "Вид: %sx",
+  "wimf.gui.notes.tooltip.layout": "Изменить вид сетки"
 }

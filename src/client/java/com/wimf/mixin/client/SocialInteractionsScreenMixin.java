@@ -1,6 +1,7 @@
 package com.wimf.mixin.client;
 
 import com.wimf.FriendManager;
+import com.wimf.FriendProfile;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.multiplayer.SocialInteractionsPlayerListWidget;
@@ -15,148 +16,134 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import com.wimf.IFriendScreen;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Mixin(SocialInteractionsScreen.class)
-public abstract class SocialInteractionsScreenMixin extends Screen implements IFriendScreen {
+public abstract class SocialInteractionsScreenMixin extends Screen implements com.wimf.IFriendScreen {
 
     @Shadow private SocialInteractionsPlayerListWidget playerList;
-    @Shadow protected abstract void updateServerLabel(MinecraftClient client);
 
-    @Unique
-    private static final Text FRIENDS_TAB_TITLE = Text.translatable("wimf.gui.tab.friends");
+    @Unique private static final Text FRIENDS_TAB_TITLE = Text.translatable("wimf.gui.tab.friends");
+    @Unique private boolean wimf$isFriendTab = false;
+    @Unique private ButtonWidget wimf$friendButton;
+    @Unique private ButtonWidget wimf$settingsButton; // Кнопка Шестеренки
 
-    @Unique
-    private boolean wimf$isFriendTab = false;
-
-    @Unique
-    private ButtonWidget wimf$friendButton;
-
-    protected SocialInteractionsScreenMixin(Text title) {
-        super(title);
-    }
+    protected SocialInteractionsScreenMixin(Text title) { super(title); }
 
     @Inject(method = "init", at = @At("TAIL"))
     private void addFriendTabButton(CallbackInfo ci) {
-        // РАСЧЕТ КООРДИНАТ СРАЗУ ПРИ СОЗДАНИИ
-        // (this.width - 238) / 2 — это формула центрирования меню в ванильном коде
         int windowLeft = (this.width - 238) / 2;
         int rightEdgeOfBackground = windowLeft + 238;
 
-        // Ставим кнопку справа от фона + маленький отступ (2 пикселя)
-        int buttonX = rightEdgeOfBackground + 2;
-        int buttonY = 45; // Стандартная высота вкладок
-
+        // 1. Кнопка "Друзья"
         this.wimf$friendButton = ButtonWidget.builder(FRIENDS_TAB_TITLE, button -> {
                     this.wimf$isFriendTab = true;
-
-                    // --- ЯДЕРНОЕ РЕШЕНИЕ ---
-                    // Принудительно перезагружаем данные перед показом
                     FriendManager.getInstance().reload();
-
-                    if (this.playerList != null) {
-                        this.playerList.setScrollY(0);
-                    }
-
+                    if (this.playerList != null) this.playerList.setScrollY(0);
                     this.updateFriendList();
                     this.updateButtonStyles();
                 })
-                // ВАЖНО: Передаем buttonX и buttonY, а не 0, 0
-                .dimensions(buttonX, buttonY, 50, 20)
+                .dimensions(rightEdgeOfBackground + 2, 45, 50, 20)
                 .build();
-
         this.addDrawableChild(this.wimf$friendButton);
+
+        // 2. Кнопка "Шестеренка" (Настройки)
+        this.wimf$settingsButton = ButtonWidget.builder(Text.literal("⚙"), button -> {
+                    // Открываем настройки
+                    this.client.setScreen(new com.wimf.gui.FriendSettingsScreen(this));
+                })
+                .dimensions(rightEdgeOfBackground + 2 + 52, 45, 20, 20) // Справа от кнопки Друзья
+                .build();
+        this.wimf$settingsButton.visible = false; // Скрыта, пока не выберем вкладку друзей
+        this.addDrawableChild(this.wimf$settingsButton);
+
         if (this.wimf$isFriendTab) {
             this.updateFriendList();
+            this.updateButtonStyles();
         }
     }
 
-    /**
-     * Этот метод нужен, чтобы кнопка не уезжала, если игрок изменит размер окна, не закрывая меню
-     */
     @Inject(method = "refreshWidgetPositions", at = @At("TAIL"))
     private void updateMyButtonPosition(CallbackInfo ci) {
         if (this.wimf$friendButton != null) {
             int windowLeft = (this.width - 238) / 2;
-            int rightEdgeOfBackground = windowLeft + 238;
-
-            this.wimf$friendButton.setX(rightEdgeOfBackground + 2);
+            int rightEdge = windowLeft + 238;
+            this.wimf$friendButton.setX(rightEdge + 2);
             this.wimf$friendButton.setY(45);
+
+            if (this.wimf$settingsButton != null) {
+                this.wimf$settingsButton.setX(rightEdge + 2 + 52);
+                this.wimf$settingsButton.setY(45);
+            }
         }
     }
 
     @Inject(method = "setCurrentTab", at = @At("HEAD"))
     private void onSetCurrentTab(SocialInteractionsScreen.Tab tab, CallbackInfo ci) {
-        // Сбрасываем нашу вкладку при переключении на ванильные
         this.wimf$isFriendTab = false;
         this.updateButtonStyles();
     }
 
     @Unique
     private void updateFriendList() {
-        if (this.playerList != null && this.client != null) {
+        if (this.playerList == null || this.client == null) return;
 
-            // --- ОТЛАДКА ---
-            List<com.wimf.FriendProfile> friends = FriendManager.getInstance().getAllFriends();
-            // ----------------
+        // --- ЛОГИКА СОРТИРОВКИ ---
+        List<FriendProfile> allFriends = new ArrayList<>(FriendManager.getInstance().getAllFriends());
 
-            List<UUID> uuidsToShow = new ArrayList<>();
-            List<String> addedNicknames = new ArrayList<>();
+        // Сортируем: Избранные -> Онлайн -> Оффлайн
+        allFriends.sort((p1, p2) -> {
+            if (p1.isFavorite() && !p2.isFavorite()) return -1; // p1 выше
+            if (!p1.isFavorite() && p2.isFavorite()) return 1;  // p2 выше
 
-            // 1. Онлайн
-            if (this.client.getNetworkHandler() != null) {
-                Collection<UUID> onlineUUIDs = this.client.getNetworkHandler().getPlayerUuids();
-                for (UUID uuid : onlineUUIDs) {
-                    PlayerListEntry entry = this.client.getNetworkHandler().getPlayerListEntry(uuid);
-                    if (entry != null) {
-                        String name = entry.getProfile().getName();
-                        if (FriendManager.getInstance().isFriend(name)) {
-                            uuidsToShow.add(uuid);
-                            addedNicknames.add(name);
-                            FriendManager.getInstance().updateFriendStatus(name, uuid);
-                        }
-                    }
-                }
+            // Если статус "Избранное" одинаковый, можно сортировать по нику или онлайну
+            return p1.getNickname().compareToIgnoreCase(p2.getNickname());
+        });
+
+        // Теперь собираем UUID в нужном порядке
+        List<UUID> uuidsToShow = new ArrayList<>();
+        List<String> addedNicknames = new ArrayList<>();
+
+        // ВНИМАНИЕ: Чтобы сортировка работала, нам нужно добавлять UUID в том порядке,
+        // в котором они отсортированы в allFriends.
+        // Но SocialPlayerListWidget сам пытается сортировать онлайн игроков.
+        // Мы сделаем просто: добавим всех по списку.
+
+        for (FriendProfile profile : allFriends) {
+            UUID uuid = profile.getUuid();
+            if (uuid == null) {
+                uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + profile.getNickname()).getBytes());
             }
 
-            // 2. Оффлайн
-            for (com.wimf.FriendProfile profile : friends) {
-                if (addedNicknames.contains(profile.getNickname())) continue;
-
-                UUID fUuid = profile.getUuid();
-                if (!uuidsToShow.contains(fUuid)) {
-                    uuidsToShow.add(fUuid);
-                }
+            // Если этот друг есть онлайн (в табе) - добавляем его реальный UUID
+            if (client.getNetworkHandler() != null && client.getNetworkHandler().getPlayerListEntry(uuid) != null) {
+                uuidsToShow.add(uuid);
+                addedNicknames.add(profile.getNickname());
             }
-
-
-            this.playerList.setScrollY(0);
-            this.playerList.update(uuidsToShow, 0, false);
+            // Если оффлайн - добавляем всё равно
+            else if (!uuidsToShow.contains(uuid)) {
+                uuidsToShow.add(uuid);
+            }
         }
+
+        this.playerList.setScrollY(0);
+        this.playerList.update(uuidsToShow, 0, false);
     }
+
     @Unique
     private void updateButtonStyles() {
         if (this.wimf$friendButton != null) {
             if (this.wimf$isFriendTab) {
                 this.wimf$friendButton.setMessage(FRIENDS_TAB_TITLE.copy().formatted(Formatting.UNDERLINE));
+                this.wimf$settingsButton.visible = true; // Показываем шестеренку
             } else {
                 this.wimf$friendButton.setMessage(FRIENDS_TAB_TITLE);
+                this.wimf$settingsButton.visible = false; // Скрываем
             }
         }
     }
-    @Override
-    public void wimf$refreshList() {
-        // Просто вызываем наш существующий метод обновления
-        this.updateFriendList();
-    }
 
-    @Override
-    public boolean wimf$isFriendTab() {
-        return this.wimf$isFriendTab;
-    }
+    @Override public void wimf$refreshList() { this.updateFriendList(); }
+    @Override public boolean wimf$isFriendTab() { return this.wimf$isFriendTab; }
 }

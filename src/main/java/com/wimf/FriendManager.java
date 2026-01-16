@@ -105,5 +105,53 @@ public class FriendManager {
     public List<FriendProfile> getAllFriends() {
         return getFriendsList();
     }
+    public boolean isShowToasts() {
+        return ConfigManager.getInstance().getConfig().isShowJoinToast();
+    }
+
+    public void setShowToasts(boolean show) {
+        ConfigManager.getInstance().getConfig().setShowJoinToast(show);
+        save();
+    }
+
+    public int getOnlineColor() {
+        return parseColor(ConfigManager.getInstance().getConfig().getOnlineColor(), 0xFF55FF55);
+    }
+
+    public void setOnlineColor(String hex) {
+        ConfigManager.getInstance().getConfig().setOnlineColor(hex);
+        save();
+    }
+
+    public int getOfflineColor() {
+        return parseColor(ConfigManager.getInstance().getConfig().getOfflineColor(), 0xFF00AA00);
+    }
+
+    public void setOfflineColor(String hex) {
+        ConfigManager.getInstance().getConfig().setOfflineColor(hex);
+        save();
+    }
+
+    // Парсер цвета (#RRGGBB -> int)
+    private int parseColor(String hex, int defaultColor) {
+        try {
+            if (hex.startsWith("#")) hex = hex.substring(1);
+            // Добавляем альфа-канал FF (непрозрачность), если его нет
+            if (hex.length() == 6) hex = "FF" + hex;
+            return (int) Long.parseLong(hex, 16);
+        } catch (Exception e) {
+            return defaultColor;
+        }
+    }
+    // Добавь это в класс FriendManager
+    public void saveConfig() {
+        ConfigManager.getInstance().save();
+    }
+    public void toggleFavorite(String nickname) {
+        getFriend(nickname).ifPresent(p -> {
+            p.setFavorite(!p.isFavorite());
+            save();
+        });
+    }
 
 }

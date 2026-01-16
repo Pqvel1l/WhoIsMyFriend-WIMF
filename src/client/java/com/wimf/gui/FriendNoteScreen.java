@@ -16,6 +16,7 @@ import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class FriendNoteScreen extends Screen {
@@ -24,9 +25,9 @@ public class FriendNoteScreen extends Screen {
 
     private NoteListWidget listWidget;
     private TextFieldWidget newNoteInput;
-    private ButtonWidget deleteSelectedButton;
+    private ButtonWidget layoutButton;
 
-    private final Set<Integer> selectedNotes = new HashSet<>();
+    private static int columns = 3; // По умолчанию 3, но карточки всегда фиксированного размера
     private static final int MAX_NOTE_LENGTH = 100;
 
     public FriendNoteScreen(Screen parent, String nickname) {
@@ -37,30 +38,20 @@ public class FriendNoteScreen extends Screen {
 
     @Override
     protected void init() {
-        // 1. Кнопка "Вернуться к списку" (Левый ВЕРХНИЙ угол)
-        // Ширина побольше, чтобы влез текст
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("wimf.gui.notes.button.back_to_list"), button -> {
-                    if (this.client != null) {
-                        this.client.setScreen(this.parent);
-                    }
-                })
-                .dimensions(10, 10, 150, 20)
-                .build());
-
-        // 2. Список заметок
         this.listWidget = new NoteListWidget(this.client, this.nickname);
         this.addDrawableChild(this.listWidget);
 
-        // 3. Поле ввода новой заметки
-        int inputWidth = 200;
+        // --- УВЕЛИЧЕННОЕ ПОЛЕ ВВОДА ---
+        int inputWidth = 260; // Шире
+        int inputHeight = 24; // Выше
         this.newNoteInput = new TextFieldWidget(this.textRenderer,
-                (this.width - inputWidth) / 2, this.height - 30,
-                inputWidth, 20, Text.literal(""));
+                (this.width - inputWidth) / 2, this.height - 35,
+                inputWidth, inputHeight, Text.literal(""));
         this.newNoteInput.setMaxLength(MAX_NOTE_LENGTH);
         this.newNoteInput.setPlaceholder(Text.translatable("wimf.gui.notes.input_placeholder"));
         this.addDrawableChild(this.newNoteInput);
 
-        // 4. Кнопка "Добавить"
+        // Кнопка Add (Тоже больше)
         this.addDrawableChild(ButtonWidget.builder(Text.translatable("wimf.gui.notes.button.add"), button -> {
                     String text = this.newNoteInput.getText();
                     if (text != null && !text.trim().isEmpty()) {
@@ -69,246 +60,333 @@ public class FriendNoteScreen extends Screen {
                         this.refreshList();
                     }
                 })
-                .dimensions((this.width - inputWidth) / 2 + inputWidth + 5, this.height - 30, 60, 20)
+                .dimensions((this.width - inputWidth) / 2 + inputWidth + 5, this.height - 35, 60, 24)
                 .build());
 
-        // 5. Кнопка "Удалить выбранные" (Левый НИЖНИЙ угол)
-        this.deleteSelectedButton = ButtonWidget.builder(Text.translatable("wimf.gui.notes.button.delete_selected", 0), button -> {
-                    deleteSelectedNotes();
+        // Кнопка Back (Большая)
+        this.addDrawableChild(ButtonWidget.builder(Text.translatable("wimf.gui.notes.button.back_to_list"), button -> {
+                    if (this.client != null) this.client.setScreen(this.parent);
                 })
-                .dimensions(10, this.height - 30, 100, 20)
+                .dimensions(10, 10, 160, 24)
+                .build());
+
+        // Кнопка Layout
+        this.layoutButton = ButtonWidget.builder(Text.translatable("wimf.gui.notes.layout", columns), button -> {
+                    columns++;
+                    if (columns > 3) columns = 1;
+                    // Обновляем текст кнопки при нажатии
+                    button.setMessage(Text.translatable("wimf.gui.notes.layout", columns));
+                    this.refreshList();
+                })
+                .dimensions(this.width - 80, 10, 70, 20)
+                .tooltip(Tooltip.of(Text.translatable("wimf.gui.notes.tooltip.layout"))) // Тултип
                 .build();
-
-        // Скрываем кнопку при инициализации (так как ничего не выбрано)
-        this.deleteSelectedButton.visible = false;
-        this.addDrawableChild(this.deleteSelectedButton);
-
+        this.addDrawableChild(this.layoutButton);
         this.refreshList();
     }
 
     private void refreshList() {
-        this.selectedNotes.clear();
-        this.updateDeleteButton();
         this.listWidget.refreshNotes();
     }
 
-    private void deleteSelectedNotes() {
-        if (selectedNotes.isEmpty()) return;
-        List<Integer> sortedIndices = new ArrayList<>(selectedNotes);
-        sortedIndices.sort(Collections.reverseOrder());
-        for (int index : sortedIndices) {
-            FriendManager.getInstance().removeNote(this.nickname, index);
-        }
-        refreshList();
+    private String getFormattedDate(long timestamp) {
+        if (timestamp == 0) return "Never";
+        SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yy HH:mm:ss");
+        return sdf.format(new Date(timestamp));
     }
 
-    public void toggleSelection(int index, boolean isSelected) {
-        if (isSelected) selectedNotes.add(index);
-        else selectedNotes.remove(index);
-        updateDeleteButton();
-    }
-
-    private void updateDeleteButton() {
-        if (selectedNotes.isEmpty()) {
-            // Если пусто - скрываем кнопку
-            this.deleteSelectedButton.visible = false;
-        } else {
-            // Если есть выбор - показываем и обновляем текст
-            this.deleteSelectedButton.visible = true;
-            this.deleteSelectedButton.setMessage(Text.translatable("wimf.gui.notes.button.delete_selected", selectedNotes.size()));
+    private Text getStatusText(FriendProfile profile) {
+        // 1. ПРОВЕРКА РЕАЛЬНОГО ОНЛАЙНА
+        // Если игрок прямо сейчас есть на сервере — пишем ONLINE, игнорируя таймер
+        if (isPlayerOnline(profile.getUuid())) {
+            return Text.translatable("wimf.status.online_now").formatted(Formatting.GREEN);
         }
+
+        // 2. Если не онлайн — считаем время
+        long timestamp = profile.getLastSeenTimestamp();
+
+        if (timestamp == 0) {
+            return Text.translatable("wimf.status.never_seen").formatted(Formatting.GRAY);
+        }
+
+        long diff = System.currentTimeMillis() - timestamp;
+        long minutes = diff / 60000;
+        long hours = minutes / 60;
+        long days = hours / 24;
+
+        // Если вышел меньше минуты назад
+        if (minutes < 1) return Text.translatable("wimf.status.seen_minutes", "< 1").formatted(Formatting.GRAY);
+
+        if (minutes < 60) return Text.translatable("wimf.status.seen_minutes", minutes).formatted(Formatting.GRAY);
+        if (hours < 24) return Text.translatable("wimf.status.seen_hours", hours).formatted(Formatting.GRAY);
+        return Text.translatable("wimf.status.seen_days", days).formatted(Formatting.GRAY);
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         context.fill(0, 0, this.width, this.height, 0xC0000000);
         super.render(context, mouseX, mouseY, delta);
-        // Заголовок чуть ниже, так как сверху кнопка "Назад"
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 15, 0xFFFFFFFF);
-        Optional<FriendProfile> profile = FriendManager.getInstance().getFriend(this.nickname);
-        if (profile.isPresent()) {
-            Text lastSeen = getLastSeenText(profile.get().getLastSeenTimestamp());
 
-            context.drawCenteredTextWithShadow(this.textRenderer, lastSeen, this.width / 2, 22, 0xFFFFFFFF);
-        }
+        // Заголовок (1.5x)
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate((float)(this.width / 2.0), 10.0f);
+        context.getMatrices().scale(1.5f, 1.5f);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, 0, 0, 0xFFFFFFFF);
+        context.getMatrices().popMatrix();
+
+        // Last Seen
+        FriendManager.getInstance().getFriend(this.nickname).ifPresent(profile -> {
+            // Передаем весь профиль целиком
+            Text status = getStatusText(profile);
+            int centerX = this.width / 2;
+            int statusY = 30;
+
+            context.drawCenteredTextWithShadow(this.textRenderer, status, centerX, statusY, 0xFFFFFFFF);
+
+            // Тултип
+            int textWidth = this.textRenderer.getWidth(status);
+            if (mouseY >= statusY && mouseY <= statusY + 10 && mouseX >= centerX - textWidth/2 && mouseX <= centerX + textWidth/2) {
+                context.drawTooltip(this.textRenderer, Text.literal(getFormattedDate(profile.getLastSeenTimestamp())), mouseX, mouseY);
+            }
+
+
+
+
+        });
     }
+
+
 
     // ====================================================================================
     // СПИСОК
     // ====================================================================================
 
-    class NoteListWidget extends ElementListWidget<NoteListWidget.NoteEntry> {
+    class NoteListWidget extends ElementListWidget<NoteListWidget.NoteRowEntry> {
         private final String nickname;
 
+
+
+
         public NoteListWidget(MinecraftClient client, String nickname) {
-            // Увеличили отступ сверху (40), чтобы не наезжать на кнопку "Назад"
-            super(client, FriendNoteScreen.this.width, FriendNoteScreen.this.height - 70, 40, 36);
+            super(client, FriendNoteScreen.this.width, FriendNoteScreen.this.height - 80, 45, 60);
             this.nickname = nickname;
         }
+
 
         public void refreshNotes() {
             this.clearEntries();
             Optional<FriendProfile> profile = FriendManager.getInstance().getFriend(this.nickname);
             if (profile.isPresent()) {
                 List<String> notes = profile.get().getNotes();
-                for (int i = 0; i < notes.size(); i++) {
-                    this.addEntry(new NoteEntry(i, notes.get(i)));
+                for (int i = 0; i < notes.size(); i += columns) {
+                    List<Integer> indices = new ArrayList<>();
+                    List<String> texts = new ArrayList<>();
+                    for (int j = 0; j < columns; j++) {
+                        if (i + j < notes.size()) {
+                            indices.add(i + j);
+                            texts.add(notes.get(i + j));
+                        }
+                    }
+                    this.addEntry(new NoteRowEntry(indices, texts));
                 }
             }
         }
 
-        public class NoteEntry extends ElementListWidget.Entry<NoteEntry> {
-            private final int index;
-            private String text;
+        public class NoteRowEntry extends ElementListWidget.Entry<NoteRowEntry> {
+            private final List<SubNoteWidget> subWidgets = new ArrayList<>();
 
-            private final CheckboxWidget checkbox;
-            private final ButtonWidget editBtn;
-            private final ButtonWidget saveBtn;
-            private final ButtonWidget deleteBtn;
+            public NoteRowEntry(List<Integer> indices, List<String> texts) {
+                // --- ФИКСИРОВАННЫЙ РАЗМЕР КАРТОЧКИ ---
+                // Мы берем ширину экрана, делим на 3 (максимально колонок) и отнимаем отступы.
+                // Это будет эталонный размер.
+                int screenW = FriendNoteScreen.this.width - 50;
+                int cardWidth = (screenW - (5 * 2)) / 3; // Всегда размер как для 3 колонок
+                int gap = 5;
 
-            private final TextFieldWidget inlineEditor;
-            private boolean isEditing = false;
-
-            public NoteEntry(int index, String text) {
-                this.index = index;
-                this.text = text;
-
-                // Чекбокс
-                this.checkbox = CheckboxWidget.builder(Text.empty(), client.textRenderer)
-                        .pos(0, 0)
-                        .callback((cb, checked) -> FriendNoteScreen.this.toggleSelection(index, checked))
-                        .build();
-                // По умолчанию скрыт, пока не наведешь мышь (логика в render)
-                this.checkbox.visible = false;
-
-                this.editBtn = ButtonWidget.builder(Text.literal("✎"), btn -> startInlineEditing())
-                        .dimensions(0, 0, 20, 20)
-                        .tooltip(Tooltip.of(Text.translatable("wimf.gui.notes.tooltip.edit")))
-                        .build();
-
-                this.saveBtn = ButtonWidget.builder(Text.literal("✔").formatted(Formatting.GREEN), btn -> saveInlineEditing())
-                        .dimensions(0, 0, 20, 20)
-                        .tooltip(Tooltip.of(Text.translatable("wimf.gui.notes.button.save")))
-                        .build();
-                this.saveBtn.visible = false;
-
-                this.deleteBtn = ButtonWidget.builder(Text.literal("x").formatted(Formatting.RED), btn -> {
-                            FriendManager.getInstance().removeNote(nickname, index);
-                            FriendNoteScreen.this.refreshList();
-                        })
-                        .dimensions(0, 0, 20, 20)
-                        .tooltip(Tooltip.of(Text.translatable("wimf.gui.notes.tooltip.delete")))
-                        .build();
-
-                this.inlineEditor = new TextFieldWidget(client.textRenderer, 0, 0, 100, 18, Text.empty());
-                this.inlineEditor.setMaxLength(MAX_NOTE_LENGTH);
-                this.inlineEditor.setText(text);
-                this.inlineEditor.visible = false;
-            }
-
-            private void startInlineEditing() {
-                this.isEditing = true;
-                this.inlineEditor.visible = true;
-                this.inlineEditor.setFocused(true);
-                this.inlineEditor.setSelectionStart(0);
-                this.editBtn.visible = false;
-                this.saveBtn.visible = true;
-                // При редактировании чекбокс лучше скрыть или оставить,
-                // но пока оставим как есть (он будет виден при наведении)
-            }
-
-            private void saveInlineEditing() {
-                String newText = this.inlineEditor.getText();
-                if (newText != null && !newText.trim().isEmpty()) {
-                    FriendManager.getInstance().editNote(nickname, index, newText);
-                    this.text = newText;
+                for (int k = 0; k < indices.size(); k++) {
+                    // xOffset считаем относительно начала группы
+                    this.subWidgets.add(new SubNoteWidget(indices.get(k), texts.get(k), k * (cardWidth + gap), cardWidth));
                 }
-                this.isEditing = false;
-                this.inlineEditor.visible = false;
-                this.editBtn.visible = true;
-                this.saveBtn.visible = false;
             }
 
             @Override
             public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
-                int checkboxX = x + 2;
-                int checkboxY = y + (entryHeight - 20) / 2;
+                // Центрируем группу карточек в строке
+                int totalRowWidth = subWidgets.size() * subWidgets.get(0).width + (subWidgets.size() - 1) * 5;
+                int startX = FriendNoteScreen.this.width / 2 - totalRowWidth / 2;
 
-                // --- ЛОГИКА ВИДИМОСТИ ЧЕКБОКСА ---
-                // Виден, если: навели мышь ИЛИ он уже нажат
-                this.checkbox.visible = hovered || this.checkbox.isChecked();
-
-                this.checkbox.setX(checkboxX);
-                this.checkbox.setY(checkboxY);
-                this.checkbox.render(context, mouseX, mouseY, tickDelta);
-
-                int textStartX = checkboxX + 24;
-                int buttonsWidth = 45;
-                int maxTextWidth = entryWidth - 24 - buttonsWidth - 5;
-
-                if (this.isEditing) {
-                    this.inlineEditor.setX(textStartX);
-                    this.inlineEditor.setY(y + (entryHeight - 18) / 2);
-                    this.inlineEditor.setWidth(maxTextWidth);
-                    this.inlineEditor.render(context, mouseX, mouseY, tickDelta);
-
-                    this.saveBtn.setX(x + entryWidth - 25);
-                    this.saveBtn.setY(y + (entryHeight - 20) / 2);
-                    this.saveBtn.render(context, mouseX, mouseY, tickDelta);
-
-                } else {
-                    List<OrderedText> lines = client.textRenderer.wrapLines(Text.literal(this.text), maxTextWidth);
-                    int limit = Math.min(lines.size(), 3);
-                    for (int i = 0; i < limit; i++) {
-                        context.drawText(client.textRenderer, lines.get(i), textStartX, y + 8 + (i * 9), 0xFFFFFFFF, true);
-                    }
-
-                    if (hovered) {
-                        this.editBtn.setX(x + entryWidth - 48);
-                        this.editBtn.setY(y + (entryHeight - 20) / 2);
-                        this.editBtn.render(context, mouseX, mouseY, tickDelta);
-
-                        this.deleteBtn.setX(x + entryWidth - 24);
-                        this.deleteBtn.setY(y + (entryHeight - 20) / 2);
-                        this.deleteBtn.render(context, mouseX, mouseY, tickDelta);
-                    }
+                for (SubNoteWidget widget : subWidgets) {
+                    // ОБНОВЛЯЕМ РЕАЛЬНЫЕ КООРДИНАТЫ ДЛЯ ХИТБОКСА
+                    widget.realX = startX + widget.xOffset;
+                    widget.realY = y;
+                    widget.render(context, widget.realX, widget.realY, mouseX, mouseY, tickDelta);
                 }
             }
 
             @Override
-            public List<? extends Element> children() {
-                if (isEditing) return List.of(this.inlineEditor, this.saveBtn, this.checkbox);
-                return List.of(this.editBtn, this.deleteBtn, this.checkbox);
+            public boolean mouseClicked(double mouseX, double mouseY, int button) {
+                for (SubNoteWidget widget : subWidgets) {
+                    if (widget.mouseClicked(mouseX, mouseY, button)) return true;
+                }
+                return super.mouseClicked(mouseX, mouseY, button);
             }
-
             @Override
-            public List<? extends Selectable> selectableChildren() {
-                if (isEditing) return List.of(this.inlineEditor, this.saveBtn, this.checkbox);
-                return List.of(this.editBtn, this.deleteBtn, this.checkbox);
+            public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+                for (SubNoteWidget widget : subWidgets) if (widget.keyPressed(keyCode, scanCode, modifiers)) return true;
+                return super.keyPressed(keyCode, scanCode, modifiers);
+            }
+            @Override
+            public boolean charTyped(char chr, int modifiers) {
+                for (SubNoteWidget widget : subWidgets) if (widget.charTyped(chr, modifiers)) return true;
+                return super.charTyped(chr, modifiers);
+            }
+            @Override public List<? extends Element> children() { return subWidgets; }
+            @Override public List<? extends Selectable> selectableChildren() { return subWidgets; }
+        }
+
+        class SubNoteWidget implements Element, Selectable {
+            int noteIndex;
+            String text;
+            int xOffset;
+            int width;
+            int height = 55;
+
+            // Храним реальные координаты на экране
+            int realX, realY;
+
+            ButtonWidget editBtn;
+            ButtonWidget deleteBtn;
+            TextFieldWidget inlineEditor;
+            ButtonWidget saveBtn;
+            boolean isEditing = false;
+            private boolean focused = false;
+
+            public SubNoteWidget(int index, String text, int xOffset, int width) {
+                this.noteIndex = index;
+                this.text = text;
+                this.xOffset = xOffset;
+                this.width = width;
+
+                // УВЕЛИЧЕННЫЕ КНОПКИ (20x20)
+                this.editBtn = ButtonWidget.builder(Text.literal("✎"), b -> startEdit())
+                        .dimensions(0, 0, 20, 20).build(); // Было 15
+
+                this.deleteBtn = ButtonWidget.builder(Text.literal("x").formatted(Formatting.RED), b -> {
+                    FriendManager.getInstance().removeNote(nickname, noteIndex);
+                    FriendNoteScreen.this.refreshList();
+                }).dimensions(0, 0, 20, 20).build(); // Было 15
+
+                this.inlineEditor = new TextFieldWidget(client.textRenderer, 0, 0, width - 10, 15, Text.empty());
+                this.inlineEditor.setMaxLength(MAX_NOTE_LENGTH);
+                this.inlineEditor.setText(text);
+                this.inlineEditor.visible = false;
+
+                this.saveBtn = ButtonWidget.builder(Text.literal("✔").formatted(Formatting.GREEN), b -> saveEdit())
+                        .dimensions(0, 0, 20, 20).build();
+                this.saveBtn.visible = false;
             }
 
+            void startEdit() {
+                isEditing = true;
+                inlineEditor.visible = true;
+                inlineEditor.setFocused(true);
+                saveBtn.visible = true;
+                editBtn.visible = false;
+            }
+
+            void saveEdit() {
+                FriendManager.getInstance().editNote(nickname, noteIndex, inlineEditor.getText());
+                isEditing = false;
+                inlineEditor.visible = false;
+                saveBtn.visible = false;
+                editBtn.visible = true;
+                this.text = inlineEditor.getText();
+            }
+
+            public void render(DrawContext context, int x, int y, int mouseX, int mouseY, float delta) {
+                int borderColor = 0xFFFFFFFF;
+                int bgColor = 0xFF202020;
+
+                context.fill(x, y, x + width, y + height, borderColor);
+                context.fill(x + 1, y + 1, x + width - 1, y + height - 1, bgColor);
+
+                if (!isEditing) {
+                    context.drawText(client.textRenderer, "#" + (noteIndex + 1), x + 4, y + 4, 0xFFAAAAAA, false);
+                    List<OrderedText> lines = client.textRenderer.wrapLines(Text.literal(text), width - 8);
+                    int limit = Math.min(lines.size(), 3);
+                    for (int i = 0; i < limit; i++) {
+                        context.drawText(client.textRenderer, lines.get(i), x + 4, y + 16 + (i * 10), 0xFFFFFFFF, false);
+                    }
+                } else {
+                    inlineEditor.setX(x + 4);
+                    inlineEditor.setY(y + 16);
+                    inlineEditor.setWidth(width - 8);
+                    inlineEditor.render(context, mouseX, mouseY, delta);
+
+                    saveBtn.setX(x + width - 22);
+                    saveBtn.setY(y + height - 22);
+                    saveBtn.render(context, mouseX, mouseY, delta);
+                }
+
+                // Кнопки рисуем всегда, если навели на карточку (или всегда, чтобы видеть)
+                if (mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height) {
+                    if (!isEditing) {
+                        editBtn.setX(x + width - 44); // Сдвинули левее
+                        editBtn.setY(y + 2);
+                        editBtn.render(context, mouseX, mouseY, delta);
+
+                        deleteBtn.setX(x + width - 22);
+                        deleteBtn.setY(y + 2);
+                        deleteBtn.render(context, mouseX, mouseY, delta);
+                    }
+                }
+            }
+
+            @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
+                // ИСПРАВЛЕНИЕ КЛИКА: Используем realX/realY для проверки
+                // Но кнопки сами проверяют свои координаты (которые мы задали в render).
+                // Главное - вызвать mouseClicked у кнопок.
+
+                if (isEditing) {
+                    if (saveBtn.mouseClicked(mouseX, mouseY, button)) return true;
+                    if (inlineEditor.mouseClicked(mouseX, mouseY, button)) return true;
+                } else {
+                    if (editBtn.mouseClicked(mouseX, mouseY, button)) return true;
+                    if (deleteBtn.mouseClicked(mouseX, mouseY, button)) return true;
+                }
+                return false;
+            }
+
+            // ... остальной код (keyPressed и т.д.) ...
+            @Override public void setFocused(boolean focused) { this.focused = focused; }
+            @Override public boolean isFocused() { return this.focused; }
+            @Override public SelectionType getType() { return SelectionType.NONE; }
+            @Override public void appendNarrations(net.minecraft.client.gui.screen.narration.NarrationMessageBuilder builder) {}
+            @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+                if (isEditing) return inlineEditor.keyPressed(keyCode, scanCode, modifiers);
+                return false;
+            }
+            @Override public boolean charTyped(char chr, int modifiers) {
+                if (isEditing) return inlineEditor.charTyped(chr, modifiers);
+                return false;
+            }
+        }
+        @Override
+        protected int getScrollbarX() {
+            // Сдвигаем скроллбар к правому краю экрана (ширина экрана - 6 пикселей)
+            return this.width - 6;
+        }
+
+        @Override
+        public int getRowWidth() {
+            // Делаем строку широкой, почти во весь экран.
+            // Это ОБЯЗАТЕЛЬНО, чтобы клики мышкой засчитывались в правой части экрана.
+            return this.width - 10;
         }
     }
-    private Text getLastSeenText(long timestamp) {
-        if (timestamp == 0) {
-            return Text.translatable("wimf.status.never_seen").formatted(Formatting.GRAY);
-        }
-
-        long diff = System.currentTimeMillis() - timestamp;
-        long seconds = diff / 1000;
-        long minutes = seconds / 60;
-        long hours = minutes / 60;
-        long days = hours / 24;
-
-        if (diff < 60 * 1000) {
-            return Text.translatable("wimf.status.online_now").formatted(Formatting.GREEN);
-        }
-        if (minutes < 60) {
-            return Text.translatable("wimf.status.seen_minutes", minutes).formatted(Formatting.GRAY);
-        }
-        if (hours < 24) {
-            return Text.translatable("wimf.status.seen_hours", hours).formatted(Formatting.GRAY);
-        }
-        return Text.translatable("wimf.status.seen_days", days).formatted(Formatting.GRAY);
+    private boolean isPlayerOnline(UUID uuid) {
+        if (this.client.getNetworkHandler() == null || uuid == null) return false;
+        // Проверяем, есть ли запись об игроке в текущем соединении
+        return this.client.getNetworkHandler().getPlayerListEntry(uuid) != null;
     }
 }

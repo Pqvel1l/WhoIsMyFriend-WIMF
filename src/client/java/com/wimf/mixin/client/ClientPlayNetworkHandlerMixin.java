@@ -1,6 +1,7 @@
 package com.wimf.mixin.client;
 
 import com.wimf.FriendManager;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,19 +14,19 @@ public class ClientPlayNetworkHandlerMixin {
 
     @Inject(method = "onPlayerList", at = @At("TAIL"))
     private void onPlayerListUpdate(PlayerListS2CPacket packet, CallbackInfo ci) {
-        // Пробегаем по всем записям в пакете
-        for (PlayerListS2CPacket.Entry entry : packet.getEntries()) {
+        MinecraftClient client = MinecraftClient.getInstance();
 
-            // --- ИСПРАВЛЕНИЕ: ПРОВЕРКА НА NULL ---
-            // Если пакет обновляет только пинг (Latency), профиль может быть null.
-            // Нам такие пакеты не нужны для получения имени, поэтому пропускаем их.
-            if (entry.profile() == null) {
-                continue;
-            }
+        // Если это не добавление игрока - выходим
+        if (!packet.getActions().contains(PlayerListS2CPacket.Action.ADD_PLAYER)) return;
+        if (client.player == null) return;
+
+        for (PlayerListS2CPacket.Entry entry : packet.getEntries()) {
+            if (entry.profile() == null) continue;
 
             String name = entry.profile().getName();
 
-            // Если игрок в друзьях - обновляем время последнего захода
+            // Если это друг - обновляем его статус (время входа и UUID)
+            // Но больше НЕ показываем уведомлений
             if (FriendManager.getInstance().isFriend(name)) {
                 FriendManager.getInstance().updateFriendStatus(name, entry.profile().getId());
             }
